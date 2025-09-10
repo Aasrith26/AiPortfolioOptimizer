@@ -20,7 +20,7 @@ load_dotenv()
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
-initialize_data()
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
 logger = logging.getLogger(__name__)
@@ -346,6 +346,7 @@ def explain():
         return jsonify({"status":"error","error":"relay_failed"}), 200
 
 if __name__ == "__main__":
+    initialize_data()
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_ENV") == "development"
     app.run(host="0.0.0.0", port=port, debug=debug)
