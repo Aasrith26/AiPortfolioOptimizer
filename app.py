@@ -18,7 +18,6 @@ from api_client import AssetSentimentAPI
 load_dotenv()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-initialize_data()
 
 CORS(app)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
@@ -55,6 +54,7 @@ def initialize_data():
     else:
         logger.info("initialize_data(): returns ready %s", getattr(asset_returns, "shape", None))
 
+initialize_data()
 
 def _normalize_profile(p: str) -> str:
     if not p: return "Sharpe"
