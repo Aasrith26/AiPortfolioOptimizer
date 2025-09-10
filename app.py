@@ -21,7 +21,6 @@ load_dotenv()
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-# REMOVE THIS LINE: initialize_data()  # <-- This is causing the crash!
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
 logger = logging.getLogger(__name__)
@@ -36,9 +35,9 @@ LATEST_KPIS_JOB_ID = None
 EXPLAINER_URL = "https://portfolioexplain-production.up.railway.app/generate-portfolio-explanation"
 
 PROFILE_POLICY = {
-    "MinRisk": {"anchor_strength": 0.60, "turnover_cap_pct": 8.0, "max_asset_cap_pct": 30.0},
-    "Sharpe": {"anchor_strength": 0.30, "turnover_cap_pct": 20.0, "max_asset_cap_pct": 35.0},
-    "MaxRet": {"anchor_strength": 0.10, "turnover_cap_pct": 35.0, "max_asset_cap_pct": 40.0},
+    "MinRisk": {"anchor_strength": 0.60, "turnover_cap_pct": 8.0,  "max_asset_cap_pct": 30.0},
+    "Sharpe":  {"anchor_strength": 0.30, "turnover_cap_pct": 20.0, "max_asset_cap_pct": 35.0},
+    "MaxRet":  {"anchor_strength": 0.10, "turnover_cap_pct": 35.0, "max_asset_cap_pct": 40.0},
 }
 
 # ---------- helpers ----------
@@ -62,13 +61,13 @@ def _normalize_profile(p: str) -> str:
     if not p: return "Sharpe"
     s = p.strip().lower()
     if "min" in s and "risk" in s: return "MinRisk"
-    if "max" in s and "ret" in s: return "MaxRet"
+    if "max" in s and "ret" in s:  return "MaxRet"
     return "Sharpe"
 
 def project_to_caps_simplex(w: pd.Series, cap: pd.Series) -> pd.Series:
     idx = w.index
     capv = cap.reindex(idx).fillna(1.0).clip(0.0, 1.0).values
-    wv = np.maximum(0.0, np.minimum(w.reindex(idx).fillna(0.0).values, capv))
+    wv   = np.maximum(0.0, np.minimum(w.reindex(idx).fillna(0.0).values, capv))
     total = float(wv.sum())
     if abs(total - 1.0) < 1e-12:
         return pd.Series(wv, index=idx)
@@ -84,7 +83,7 @@ def project_to_caps_simplex(w: pd.Series, cap: pd.Series) -> pd.Series:
             if room > 0: wv = capv / room
         return pd.Series(wv, index=idx)
     # total < 1 → distribute remainder to available room
-    rem = 1.0 - total
+    rem  = 1.0 - total
     room = capv - wv
     mask = room > 1e-12
     if mask.any():
@@ -129,7 +128,7 @@ def _write_proposal_csv(filename, assets, current_pct, target_pct, proposed_pct,
         w.writerow(["asset","current_%","target_%","proposed_%","trade_%"])
         for a in assets:
             w.writerow([a, current_pct.get(a, 0), target_pct.get(a, 0),
-                       proposed_pct.get(a, 0), trades_pct.get(a, 0)])
+                        proposed_pct.get(a, 0), trades_pct.get(a, 0)])
     return path
 
 # ---------- routes ----------
@@ -142,7 +141,7 @@ def index():
 def health():
     return jsonify({"status":"ok", "assets_loaded": asset_returns is not None and not asset_returns.empty})
 
-@app.route('/download/<filename>')
+@app.route('/download/<path:filename>')
 def download(filename):
     return send_from_directory(EXPORT_DIR, filename, as_attachment=True)
 
@@ -152,18 +151,14 @@ def get_portfolio():
     Returns optimized portfolio + kpis_job_id (needed by /explain).
     KPI job is started non-blockingly to avoid delaying optimization.
     """
-    # Initialize data if not already done
     if asset_returns is None or asset_returns.empty:
-        logger.info("get_portfolio(): initializing data on first request...")
-        initialize_data()
-        if asset_returns is None or asset_returns.empty:
-            return jsonify({"error":"Historical data could not be loaded."}), 500
+        return jsonify({"error":"Historical data not loaded."}), 500
 
     data = request.get_json(silent=True) or {}
     risk_profile_in = data.get("risk_profile", "Sharpe")
     objective = _normalize_profile(risk_profile_in)
     risk_slider = data.get("risk_slider", None)
-    export_csv = bool(data.get("export_csv", False))
+    export_csv  = bool(data.get("export_csv", False))
 
     disabled = set(data.get("disabled_assets", []))
     assets_all = list(config.ASSETS.keys())
@@ -175,7 +170,7 @@ def get_portfolio():
     job_id = None
     try:
         api = AssetSentimentAPI()
-        job_id = api.start_analysis(assets=None, timeout_minutes=15) # backend uses its own canonical list
+        job_id = api.start_analysis(assets=None, timeout_minutes=15)  # backend uses its own canonical list
         logger.info("get_portfolio(): started KPI job_id=%s", job_id)
     except Exception as e:
         logger.warning("KPI pipeline start failed: %s", e)
@@ -263,8 +258,8 @@ def get_portfolio():
     }
 
     response = {
-        "weights_target_model_pct": (target_raw*100).round(2).to_dict(),
-        "weights_target_capped_pct": (target_capped*100).round(2).to_dict(),
+        "weights_target_model_pct":    (target_raw*100).round(2).to_dict(),
+        "weights_target_capped_pct":   (target_capped*100).round(2).to_dict(),
         "weights_target_anchored_pct": (target_anchored*100).round(2).to_dict(),
         "proposal": plan | {"policy": pol | {"objective": objective}},
         "performance": perf,
@@ -273,7 +268,7 @@ def get_portfolio():
         "risk_slider_used": slider_used,
         "investable_assets": investable,
         "disabled_assets": list(disabled),
-        "kpis_job_id": job_id or LATEST_KPIS_JOB_ID # provide job_id for /explain
+        "kpis_job_id": job_id or LATEST_KPIS_JOB_ID  # provide job_id for /explain
     }
 
     if export_csv:
@@ -302,10 +297,10 @@ def explain():
     """
     Relays to explainer with exact schema it expects.
     Body can contain:
-    job_id (optional), kpis_job_id (optional),
-    current_weights / current_portfolio,
-    final_weights / optimized_portfolio,
-    risk_profile_used / risk_profile
+      job_id (optional), kpis_job_id (optional),
+      current_weights / current_portfolio,
+      final_weights / optimized_portfolio,
+      risk_profile_used / risk_profile
     """
     data = request.get_json(silent=True) or {}
 
@@ -320,17 +315,17 @@ def explain():
                     pass
         return {"Gold":0.0,"Equities":0.0,"REITs":0.0,"Bitcoin":0.0}
 
-    current_portfolio = _to_pct_map(["current_portfolio","current_weights"])
+    current_portfolio   = _to_pct_map(["current_portfolio","current_weights"])
     optimized_portfolio = _to_pct_map(["optimized_portfolio","final_weights"])
 
     rp = (data.get("risk_profile_used") or data.get("risk_profile") or "Balanced").lower()
-    if "min" in rp or "cons" in rp: risk_profile = "Conservative"
-    elif "max" in rp or "agg" in rp: risk_profile = "Aggressive"
-    else: risk_profile = "Balanced"
+    if "min" in rp or "cons" in rp:   risk_profile = "Conservative"
+    elif "max" in rp or "agg" in rp:  risk_profile = "Aggressive"
+    else:                             risk_profile = "Balanced"
 
     if not job_id:
         return jsonify({"status":"error","error":"missing_job_id",
-                       "message":"No KPI job_id available. Please click Get Recommendation again."}), 200
+                        "message":"No KPI job_id available. Please click Get Recommendation again."}), 200
 
     payload = {
         "job_id": job_id,
@@ -351,6 +346,7 @@ def explain():
         return jsonify({"status":"error","error":"relay_failed"}), 200
 
 if __name__ == "__main__":
+    initialize_data()
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_ENV") == "development"
     app.run(host="0.0.0.0", port=port, debug=debug)
