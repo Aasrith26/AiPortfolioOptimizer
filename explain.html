@@ -41,18 +41,31 @@
         <div id="asset-alloc" class="text-2xl font-extrabold"></div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
-          <h3 class="text-slate-200 font-semibold mb-2">Historical Returns</h3>
-          <div id="hist" class="space-y-1 text-sm"></div>
+      <!-- NEW LAYOUT: left column stacks Historical + Risk, right side is Key Indicators spanning 2 cols -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <!-- Left column (stacked cards) -->
+        <div class="flex flex-col gap-6 order-2 md:order-1">
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <h3 class="text-slate-200 font-semibold mb-2">Historical Returns</h3>
+            <div id="hist" class="divide-y divide-white/10">
+              <!-- rows injected -->
+            </div>
+          </div>
+
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <h3 class="text-slate-200 font-semibold mb-2">Risk Metrics</h3>
+            <div id="risk" class="divide-y divide-white/10">
+              <!-- rows injected -->
+            </div>
+          </div>
         </div>
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+
+        <!-- Key Indicators spanning two columns -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-4 md:col-span-2 order-1 md:order-2">
           <h3 class="text-slate-200 font-semibold mb-2">Key Indicators</h3>
-          <div id="indicators" class="space-y-1 text-sm"></div>
-        </div>
-        <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
-          <h3 class="text-slate-200 font-semibold mb-2">Risk Metrics</h3>
-          <div id="risk" class="space-y-1 text-sm"></div>
+          <div id="indicators" class="text-sm">
+            <!-- tidy two-column dl injected -->
+          </div>
         </div>
       </div>
 
@@ -87,15 +100,43 @@
     let lastReco = null;
     try { lastReco = JSON.parse(sessionStorage.getItem('portfolio_lastReco') || 'null'); } catch(e){}
 
-    function fmtPct(x){ return `${(+x).toFixed(2)}%`; }
-    function row(label, value){
-      return `<div class="flex justify-between border-b border-white/10 py-1">
-                <span class="text-slate-300">${label}</span>
-                <span class="font-semibold">${value}</span>
-              </div>`;
-    }
-    function titleize(s){
-      return s.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+    const statRow = (label, value) => `
+      <div class="flex items-center justify-between py-2">
+        <span class="text-slate-300">${label}</span>
+        <span class="font-semibold">${value}</span>
+      </div>`;
+
+    const fmtPct = x => ${(+x).toFixed(2)}%;
+    const titleize = s => s.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    // Pretty two-column layout for Key Indicators
+    function renderIndicators(km){
+      if (!km || Object.keys(km).length === 0) return <div class="text-slate-400">—</div>;
+      const labelMap = {
+        global_context: 'Global Context',
+        institutional_flows: 'Institutional Flows',
+        market_levels: 'Market Levels',
+        policy_metrics: 'Policy Metrics',
+        sentiment_indicators: 'Sentiment Indicators',
+        flow_analysis: 'Flow Analysis',
+        funding_metrics: 'Funding Metrics',
+        liquidity_data: 'Liquidity',
+        price_momentum: 'Price Momentum',
+        currency_data: 'Currency',
+        yield_analysis: 'Yield Analysis',
+        valuation_metrics: 'Valuation Metrics',
+        property_fundamentals: 'Property Fundamentals',
+        market_activity: 'Market Activity'
+      };
+      return Object.entries(km).map(([k,v]) => {
+        const label = labelMap[k] || titleize(k);
+        const val = (v === null || v === undefined) ? '—' : String(v);
+        return `
+          <div class="grid grid-cols-[160px_1fr] gap-x-4 items-start py-3 border-b border-white/10 last:border-0">
+            <div class="text-slate-300">${label}</div>
+            <div class="font-semibold leading-relaxed text-slate-100 break-words">${val}</div>
+          </div>`;
+      }).join('');
     }
 
     async function callExplain(payload){
@@ -105,7 +146,7 @@
         body: JSON.stringify(payload)
       });
       let json = null;
-      try { json = await resp.json(); } catch(e){ json = null; }
+      try { json = await resp.json(); } catch(e){}
       return { status: resp.status, body: json };
     }
 
@@ -116,7 +157,6 @@
         errorEl.classList.remove('hidden');
         return;
       }
-
       const basePayload = {
         job_id: lastReco.jobId || null,
         current_weights: lastReco.currentWeights || {},
@@ -124,31 +164,24 @@
         risk_profile_used: lastReco.profileUsed || 'Balanced'
       };
 
-      // Poll until KPI job is complete (backend returns 202 while pending)
-      let attempts = 0;
-      const MAX_ATTEMPTS = 60;
-
-      while (attempts < MAX_ATTEMPTS) {
-        attempts += 1;
-        let { status, body } = await callExplain(basePayload);
-
+      // Poll if explainer is still preparing fresh KPIs
+      let attempts = 0, MAX = 60;
+      while (attempts < MAX) {
+        attempts++;
+        const { status, body } = await callExplain(basePayload);
         if (status === 202 || (body && body.status === 'pending')) {
           await new Promise(r => setTimeout(r, Math.min(2000 + attempts*1500, 7000)));
           continue;
         }
-
         loadingEl.classList.add('hidden');
-
         if (!body || body.status === 'error') {
           errorEl.textContent = (body && (body.message || body.error)) || 'Could not generate explanation.';
           errorEl.classList.remove('hidden');
           return;
         }
-
         render(body);
         return;
       }
-
       loadingEl.classList.add('hidden');
       errorEl.textContent = 'Still preparing fresh metrics. Please wait a moment and click Refresh.';
       errorEl.classList.remove('hidden');
@@ -160,9 +193,9 @@
       const order = ["Gold","Equities","REITs","Bitcoin"].filter(a => assets[a]);
 
       const ts = apiResp?.metadata?.timestamp || null;
-      if (ts) asof.textContent = `As of ${ts}`;
+      if (ts) asof.textContent = As of ${ts};
 
-      // Cards (glass) with ▲/▼ and delta pp vs current
+      // Cards with ▲/▼ delta
       cardsEl.innerHTML = order.map(a => {
         const rec = assets[a]?.allocation_pct ?? (lastReco.finalWeights?.[a] ?? 0);
         const cur = lastReco.currentWeights?.[a] ?? 0;
@@ -187,7 +220,7 @@
 
       if (order.length) showAsset(order[0], assets);
       rationale.textContent = pa.allocation_rationale || '—';
-      rationaleWrap.classList.remove('hidden');
+      document.getElementById('rationale-wrap').classList.remove('hidden');
 
       cardsEl.querySelectorAll('.asset-card').forEach(btn => {
         btn.addEventListener('click', () => showAsset(btn.dataset.asset, assets));
@@ -201,24 +234,22 @@
       assetAlloc.textContent = fmtPct(rec);
 
       const hr = node.historical_returns || {};
-      histEl.innerHTML = [
-        hr["1_year"]       ? row("1 Year", hr["1_year"]) : "",
-        hr["5_years_avg"]  ? row("5 Years (Avg)", hr["5_years_avg"]) : "",
-        hr["10_years_avg"] ? row("10 Years (Avg)", hr["10_years_avg"]) : ""
-      ].join('') || `<div class="text-slate-400">—</div>`;
+      histEl.innerHTML =
+        (hr["1_year"]       ? statRow("1 Year", hr["1_year"]) : "") +
+        (hr["5_years_avg"]  ? statRow("5 Years (Avg)", hr["5_years_avg"]) : "") +
+        (hr["10_years_avg"] ? statRow("10 Years (Avg)", hr["10_years_avg"]) : "") ||
+        <div class="text-slate-400 py-2">—</div>;
 
-      // Fill Key Indicators from key_market_data (fresh)
       const km = node.key_market_data || {};
-      const indicators = Object.entries(km).map(([k,v]) => row(titleize(k), String(v))).join('');
-      indEl.innerHTML = indicators || `<div class="text-slate-400">—</div>`;
+      indEl.innerHTML = renderIndicators(km);
 
       const rm = node.risk_metrics || {};
-      riskEl.innerHTML = [
-        rm["volatility"]   ? row("Volatility", rm["volatility"]) : "",
-        rm["max_drawdown"] ? row("Max Drawdown", rm["max_drawdown"]) : "",
-        rm["sharpe_ratio"] ? row("Sharpe Ratio", rm["sharpe_ratio"]) : "",
-        rm["var_95"]       ? row("VaR (95%)", rm["var_95"]) : ""
-      ].join('') || `<div class="text-slate-400">—</div>`;
+      riskEl.innerHTML =
+        (rm["volatility"]   ? statRow("Volatility", rm["volatility"]) : "") +
+        (rm["max_drawdown"] ? statRow("Max Drawdown", rm["max_drawdown"]) : "") +
+        (rm["sharpe_ratio"] ? statRow("Sharpe Ratio", rm["sharpe_ratio"]) : "") +
+        (rm["var_95"]       ? statRow("VaR (95%)", rm["var_95"]) : "") ||
+        <div class="text-slate-400 py-2">—</div>;
 
       assetExpl.textContent = node.explanation || '—';
       analysisEl.classList.remove('hidden');
