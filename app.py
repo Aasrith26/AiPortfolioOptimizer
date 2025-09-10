@@ -309,7 +309,7 @@ def explain():
     payload={"job_id":job_id,"current_portfolio":current_portfolio,"optimized_portfolio":optimized_portfolio,"risk_profile":risk_profile}
     logger.info("explain(): POST %s | payload=%s",EXPLAINER_URL,payload)
     try:
-        r=requests.post(EXPLAINER_URL,json=payload,timeout=60)
+        r=requests.post(EXPLAINER_URL,json=payload,timeout=300)
         if r.status_code!=200:
             logger.warning("Explainer returned %s: %s",r.status_code,r.text[:400])
             return jsonify({"status":"error","error":f"explainer_http_{r.status_code}","message":r.text}),200
