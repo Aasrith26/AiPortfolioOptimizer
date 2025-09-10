@@ -18,6 +18,8 @@ from api_client import AssetSentimentAPI
 load_dotenv()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+initialize_data()
+
 CORS(app)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s [%(name)s] %(message)s')
 logger = logging.getLogger(__name__)
@@ -134,11 +136,6 @@ def _write_proposal_csv(filename, assets, current_pct, target_pct, proposed_pct,
 
 
 # ---------- routes ----------
-
-@app.before_first_request
-def load_data_once():
-    initialize_data()
-
 
 @app.route('/')
 def index():
