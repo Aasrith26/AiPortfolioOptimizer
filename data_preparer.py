@@ -1,55 +1,40 @@
 # data_preparer.py
-# Final, definitive, and simplified cleaning pipeline that is guaranteed to work.
-
 import pandas as pd
 import numpy as np
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("data_preparer")
 
-def calculate_returns(prices_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calculates daily returns and applies a robust, simplified cleaning process
-    to guarantee data integrity before optimization.
+def _winsorize(series: pd.Series, zmax: float = 8.0) -> pd.Series:
+    mu = series.mean()
+    sd = series.std(ddof=0)
+    if not np.isfinite(sd) or sd == 0:
+        return series.fillna(0.0)
+    lo, hi = mu - zmax * sd, mu + zmax * sd
+    return series.clip(lo, hi)
 
-    Args:
-        prices_df (pd.DataFrame): A DataFrame with historical asset prices.
-
-    Returns:
-        pd.DataFrame: A clean DataFrame with the daily percentage returns.
-    """
-    logger.info("calculate_returns(): start | prices_shape=%s", getattr(prices_df, 'shape', None))
-    try:
-        if prices_df is None or prices_df.empty:
-            raise ValueError("Input prices_df is empty")
-
-        # --- THE DEFINITIVE CLEANING PIPELINE ---
-        
-        # 1. Work on a copy to be safe
-        clean_prices = prices_df.copy()
-
-        # 2. Replace any non-positive prices (<= 0) with NaN. This is the
-        #    source of all 'inf' and overflow errors.
-        clean_prices[clean_prices <= 0] = np.nan
-
-        # 3. Calculate percentage change. This will correctly produce NaNs
-        #    wherever there was a non-positive price, instead of 'inf'.
-        returns = clean_prices.pct_change()
-
-        # 4. Drop ALL rows with ANY NaN values. This is the most critical step.
-        #    It removes the first row (which is always NaN) and any other
-        #    rows that were corrupted by bad price data, ensuring perfect integrity.
-        cleaned_returns = returns.dropna(how='any')
-        
-        # ----------------------------------------
-        
-        if cleaned_returns.empty:
-            raise ValueError("Dataframe is empty after cleaning. Check raw price data.")
-
-        logger.info("calculate_returns(): success | original_rows=%d final_rows=%d", len(prices_df), len(cleaned_returns))
-        return cleaned_returns
-        
-    except Exception as e:
-        logger.exception("calculate_returns(): error: %s", e)
+def sanitize_returns(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure finite, well‑behaved daily returns suitable for cov/optimization."""
+    if df is None or df.empty:
         return pd.DataFrame()
+    out = df.copy()
+    out = out.apply(pd.to_numeric, errors="coerce")
+    out.replace([np.inf, -np.inf], np.nan, inplace=True)
+    out.dropna(how="any", inplace=True)
+    out = out.apply(_winsorize)
+    var = out.var(ddof=0)
+    keep = var[var > 0].index
+    dropped = [c for c in out.columns if c not in keep]
+    if dropped:
+        logger.warning("sanitize_returns(): dropped zero‑variance assets: %s", dropped)
+    out = out[keep].astype(np.float64)
+    return out
 
+def calculate_returns(prices: pd.DataFrame) -> pd.DataFrame:
+    if prices is None or prices.empty:
+        logger.error("calculate_returns(): empty prices")
+        return pd.DataFrame()
+    raw = prices.pct_change().iloc[1:]
+    clean = sanitize_returns(raw)
+    logger.info("calculate_returns(): cleaned returns shape=%s", clean.shape)
+    return clean
