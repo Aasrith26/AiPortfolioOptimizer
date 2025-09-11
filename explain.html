@@ -106,7 +106,7 @@
         <span class="font-semibold">${value}</span>
       </div>`;
 
-    const fmtPct = x => ${(+x).toFixed(2)}%;
+    const fmtPct = x => `${(+x).toFixed(2)}%`;
     const titleize = s => s.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
 
     // Pretty two-column layout for Key Indicators
