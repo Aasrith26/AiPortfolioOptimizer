@@ -64,7 +64,7 @@ def _perf(mu: pd.Series, cov: pd.DataFrame, w: np.ndarray) -> tuple[float, float
 
 def _solve_minvar(cov: pd.DataFrame, caps: np.ndarray, iters: int = 500) -> np.ndarray:
     """Projected gradient descent on min w^T Σ w with 0<=w<=caps, sum w=1."""
-    n = cov.shape
+    n = cov.shape[0]
     w = np.full(n, 1.0 / n, dtype=np.float64)
     lr = 0.5
     G = cov.values
