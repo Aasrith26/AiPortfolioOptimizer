@@ -142,7 +142,7 @@
     async function callExplain(payload){
       const resp = await fetch('/explain', {
         method:'POST',
-        headers:{'Content-Type':'application/json', 'Cache-Control':'no-store'},
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify(payload)
       });
       let json = null;
@@ -193,7 +193,7 @@
       const order = ["Gold","Equities","REITs","Bitcoin"].filter(a => assets[a]);
 
       const ts = apiResp?.metadata?.timestamp || null;
-      if (ts) asof.textContent = As of ${ts};
+      if (ts) asof.textContent = `As of ${ts}`;
 
       // Cards with ▲/▼ delta
       cardsEl.innerHTML = order.map(a => {
