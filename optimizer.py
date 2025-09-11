@@ -19,7 +19,7 @@ def _safe_cov(returns: pd.DataFrame, min_periods: int = 30, ridge: float = 1e-8)
     if not np.all(np.isfinite(cov)):
         logger.warning("safe_cov(): non‑finite entries in sample cov; cleaning")
         cov = np.nan_to_num(cov, nan=0.0, posinf=0.0, neginf=0.0)
-    n = cov.shape
+    n = cov.shape[0]
     cov += np.eye(n) * ridge
     cov = _nearest_psd(cov, eps=ridge)
     return pd.DataFrame(cov, index=X.columns, columns=X.columns)
