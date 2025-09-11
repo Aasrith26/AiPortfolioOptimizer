@@ -2,6 +2,8 @@
 import numpy as np
 import pandas as pd
 import logging
+import optimizer_core
+
 
 logger = logging.getLogger("optimizer")
 
@@ -42,9 +44,7 @@ def get_portfolio_by_slider(returns: pd.DataFrame, expected_returns: pd.Series, 
 # Keep your original core implementations under these names or adapt wrappers
 def _solve_core(mu: pd.Series, cov: pd.DataFrame, objective: str):
     # import and delegate to your original solver code (unchanged)
-    from .optimizer_core import solve_core
     return solve_core(mu, cov, objective)
 
 def _solve_core_slider(mu: pd.Series, cov: pd.DataFrame, slider: float):
-    from .optimizer_core import solve_core_slider
     return solve_core_slider(mu, cov, slider)
